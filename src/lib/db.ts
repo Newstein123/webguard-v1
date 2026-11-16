@@ -31,6 +31,10 @@ export interface ScanRow {
   new_finding_ids: string[];
   resolved_finding_ids: string[];
   coverage: CheckCoverage[] | null;
+  /** Queue bookkeeping, written by claim_next_scan() and the worker. */
+  claimed_at: string | null;
+  heartbeat_at: string | null;
+  attempts: number;
 }
 
 export interface FindingRow {

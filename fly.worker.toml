@@ -1,0 +1,25 @@
+# Fly.io config for the scan worker (not the web app, which runs on Vercel).
+#   fly launch --no-deploy --copy-config -c fly.worker.toml   # first time: pick a unique app name
+#   fly secrets set -c fly.worker.toml NEXT_PUBLIC_SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... GITHUB_TOKEN=...
+#   fly deploy -c fly.worker.toml --ha=false                  # one machine is enough for now
+app = "webguard-worker"
+# Put the worker in (or near) your Supabase project's region: every stage writes to the database.
+primary_region = "iad"
+
+# On deploy, Fly sends SIGTERM: the worker stops claiming and finishes running scans.
+# A scan cut off after kill_timeout is requeued by recover_stale_scans, so this is safe.
+kill_signal = "SIGTERM"
+kill_timeout = 120
+
+[build]
+  dockerfile = "Dockerfile.worker"
+
+[env]
+  WORKER_CONCURRENCY = "1"
+  WORKER_POLL_MS = "2000"
+
+# No [http_service]: the worker only makes outbound requests and has no public ports.
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

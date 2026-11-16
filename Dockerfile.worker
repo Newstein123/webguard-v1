@@ -1,0 +1,17 @@
+# Scan worker image. The worker is bundled into one file (scripts/build-worker.mjs),
+# so the runtime image contains only Node and dist/: no node_modules, no Next.js.
+FROM node:22-slim AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --ignore-scripts --no-audit --no-fund
+COPY tsconfig.json ./
+COPY scripts ./scripts
+COPY src ./src
+RUN node scripts/build-worker.mjs
+
+FROM node:22-slim
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=build /app/dist ./dist
+USER node
+CMD ["node", "--enable-source-maps", "dist/worker.mjs"]

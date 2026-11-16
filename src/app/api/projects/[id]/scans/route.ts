@@ -1,8 +1,8 @@
-import { after, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser } from "@/lib/supabase/server";
 import type { ProjectRow } from "@/lib/db";
-import { createScan, runScan, ScanBusyError } from "@/server/scanner/engine";
+import { createScan, ScanBusyError } from "@/server/scanner/engine";
 
 const Body = z.object({ trigger: z.enum(["manual"]).default("manual") });
 
@@ -19,7 +19,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   try {
     const scan = await createScan(project as unknown as ProjectRow, parsed.data.trigger);
-    after(() => runScan(scan.id));
+    // Queued: the scan worker (src/worker/main.ts) picks it up.
     return NextResponse.json({ scanId: scan.id }, { status: 201 });
   } catch (e) {
     if (e instanceof ScanBusyError) return NextResponse.json({ error: e.message }, { status: 409 });

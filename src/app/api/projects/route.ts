@@ -1,10 +1,10 @@
-import { after, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser } from "@/lib/supabase/server";
 import type { ProjectRow } from "@/lib/db";
 import { parseRepo } from "@/server/scanner/github";
 import { assertPublicUrl, ScanHttpError } from "@/server/scanner/http";
-import { createScan, runScan } from "@/server/scanner/engine";
+import { createScan } from "@/server/scanner/engine";
 import { STACK_OPTIONS } from "@/server/scanner/stack";
 
 const MAX_PROJECTS = 5; // Free plan
@@ -68,6 +68,6 @@ export async function POST(req: Request) {
   }
 
   const scan = await createScan(project as unknown as ProjectRow, "initial");
-  after(() => runScan(scan.id));
+  // Queued: the scan worker (src/worker/main.ts) picks it up.
   return NextResponse.json({ projectId: project.id, scanId: scan.id }, { status: 201 });
 }

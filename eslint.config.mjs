@@ -17,6 +17,8 @@ const eslintConfig = [
       ".next/**",
       "out/**",
       "build/**",
+      "dist/**", // bundled scan worker (scripts/build-worker.mjs)
+      ".run/**", // make up: logs and PID files
       "next-env.d.ts",
     ],
   },

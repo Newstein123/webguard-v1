@@ -13,6 +13,18 @@ npm install
 npx supabase start          # local Postgres/Auth/Realtime + Mailpit; applies migrations
 cp .env.example .env.local  # then paste the URL/keys printed by `supabase start`
 npm run dev                 # http://localhost:3000
+npm run worker              # in a second terminal: runs queued scans
+```
+
+Or use the Makefile, which does the same in one step and finds Node 22 even if your default `node` is older:
+
+```bash
+make up       # Supabase + web app + scan worker, applying any new migrations
+make status   # what's running
+make logs     # follow web and worker logs
+make stop     # stop web and worker (Supabase keeps running)
+make down     # stop everything, including Supabase (data is kept)
+make check    # tests, typecheck, lint (safe while the dev server runs)
 ```
 
 Sign in with a magic link. Locally, emails land in Mailpit at http://127.0.0.1:54324.
@@ -52,15 +64,14 @@ All live-site checks are **passive**: they make the same GET requests a visitor'
 ## Architecture
 
 ```
-Browser (Next.js pages) ──reads via RLS──► Supabase Postgres
-        │                                      ▲
-        └─► /api/* route handlers ──► scan engine (src/server/scanner) ──service role──┘
-                                         ├─ GitHub API (tarball, parsed in memory, never executed or stored)
-                                         ├─ OSV API (advisories)
-                                         └─ target site (passive GETs, SSRF-guarded)
+Browser (Next.js pages) ──reads via RLS──► Supabase Postgres ◄──service role── scan worker (src/worker, container)
+        │                                      ▲   scans table = job queue          └─ scan engine (src/server/scanner)
+        └─► /api/* route handlers ──inserts queued scan                                ├─ GitHub API (tarball, in memory, never executed or stored)
+                                                                                       ├─ OSV API (advisories)
+                                                                                       └─ target site (passive GETs, SSRF-guarded)
 ```
 
-- Scans run in-process, after the response is sent (`after()`). Progress is written to `scans.stage_index` and polled by the scan overlay. Before deploying, this moves to a queue and worker.
+- **Scan queue:** the web app only inserts a `queued` scan row. The worker (`src/worker/main.ts`) claims scans with `claim_next_scan()` (`FOR UPDATE SKIP LOCKED`, so several workers never get the same scan), runs them, and writes progress to `scans.stage_index`, which the scan overlay polls. While a scan runs, the worker updates `heartbeat_at` every 30 seconds. Every minute, `recover_stale_scans()` requeues scans whose worker died (failing them after 2 attempts) and fails scans nobody picked up within 30 minutes. Every write to a scan row is fenced on `claimed_at`, so a worker that was declared dead cannot overwrite the run that replaced it.
 - **Findings reconciliation** (`engine.ts`): each finding has a stable fingerprint. If an analyzer completes and no longer sees a finding, the finding is marked resolved. If it reappears later, it is reopened as a regression. If the analyzer did not run, its findings are left untouched.
 
 | Path | Purpose |
@@ -74,8 +85,23 @@ Browser (Next.js pages) ──reads via RLS──► Supabase Postgres
 ## Security model
 
 - **Users:** every table is scoped by RLS to `auth.uid()`. Users have SELECT access, plus narrow column grants: they can ignore or reopen findings and edit project settings. A trigger prevents users from marking findings resolved; only a scan can do that.
-- **Server:** the service-role client is used only by the scan engine and account deletion, and only after an ownership check.
+- **Server:** the service-role client is used only by the scan worker and account deletion, and only after an ownership check. The queue functions can only be called with the service role.
 - **Secrets in evidence:** secrets are redacted before storage. Only a prefix and a SHA-256 fingerprint are kept.
 - **Repository code:** read from a tarball in memory, never written to disk, never executed.
 - **Outbound requests:** only http and https, only public IPs (re-checked on every redirect), with size and time limits.
 # webguard-v1
+
+## Deploying the scan worker
+
+The worker runs outside Vercel as a small container with no public ports. `npm run worker:build` bundles it into `dist/worker.mjs` (Node only, no `node_modules`), and `Dockerfile.worker` packages that bundle.
+
+Fly.io, one machine with 512 MB (`fly.worker.toml`):
+
+```bash
+fly launch --no-deploy --copy-config -c fly.worker.toml   # first time; pick a unique app name
+fly secrets set -c fly.worker.toml NEXT_PUBLIC_SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... GITHUB_TOKEN=...
+fly deploy -c fly.worker.toml --ha=false
+```
+
+Set `primary_region` to your Supabase region. The image runs on any container host, and for a private beta the worker can simply run on your own machine with `npm run worker`. Scans queue until a worker is running, and fail with a clear message after 30 minutes.
+

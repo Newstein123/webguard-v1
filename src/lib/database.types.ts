@@ -77,14 +77,14 @@ isOneToOne: false
                   ]
                 },"scans": {
                   Row: {
-                    "commit": Json | null,"coverage": Json | null,"duration_sec": number,"error": string | null,"finished_at": string | null,"id": string,"new_finding_ids": (string)[],"open_finding_ids": (string)[],"project_id": string,"resolved_finding_ids": (string)[],"stage_index": number,"stages": (string)[],"started_at": string,"status": string,"trigger": string,"user_id": string
+                    "attempts": number,"claimed_at": string | null,"commit": Json | null,"coverage": Json | null,"duration_sec": number,"error": string | null,"finished_at": string | null,"heartbeat_at": string | null,"id": string,"new_finding_ids": (string)[],"open_finding_ids": (string)[],"project_id": string,"resolved_finding_ids": (string)[],"stage_index": number,"stages": (string)[],"started_at": string,"status": string,"trigger": string,"user_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "commit"?: Json | null,"coverage"?: Json | null,"duration_sec"?: number,"error"?: string | null,"finished_at"?: string | null,"id"?: string,"new_finding_ids"?: (string)[],"open_finding_ids"?: (string)[],"project_id": string,"resolved_finding_ids"?: (string)[],"stage_index"?: number,"stages"?: (string)[],"started_at"?: string,"status"?: string,"trigger": string,"user_id": string
+                    "attempts"?: number,"claimed_at"?: string | null,"commit"?: Json | null,"coverage"?: Json | null,"duration_sec"?: number,"error"?: string | null,"finished_at"?: string | null,"heartbeat_at"?: string | null,"id"?: string,"new_finding_ids"?: (string)[],"open_finding_ids"?: (string)[],"project_id": string,"resolved_finding_ids"?: (string)[],"stage_index"?: number,"stages"?: (string)[],"started_at"?: string,"status"?: string,"trigger": string,"user_id": string
                   }
                   Update: {
-                    "commit"?: Json | null,"coverage"?: Json | null,"duration_sec"?: number,"error"?: string | null,"finished_at"?: string | null,"id"?: string,"new_finding_ids"?: (string)[],"open_finding_ids"?: (string)[],"project_id"?: string,"resolved_finding_ids"?: (string)[],"stage_index"?: number,"stages"?: (string)[],"started_at"?: string,"status"?: string,"trigger"?: string,"user_id"?: string
+                    "attempts"?: number,"claimed_at"?: string | null,"commit"?: Json | null,"coverage"?: Json | null,"duration_sec"?: number,"error"?: string | null,"finished_at"?: string | null,"heartbeat_at"?: string | null,"id"?: string,"new_finding_ids"?: (string)[],"open_finding_ids"?: (string)[],"project_id"?: string,"resolved_finding_ids"?: (string)[],"stage_index"?: number,"stages"?: (string)[],"started_at"?: string,"status"?: string,"trigger"?: string,"user_id"?: string
                   }
                   Relationships: [
                     {
@@ -115,7 +115,37 @@ isOneToOne: false
             [_ in never]: never
           }
           Functions: {
-            [_ in never]: never
+            "claim_next_scan":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "attempts": number,
+"claimed_at": string | null,
+"commit": Json | null,
+"coverage": Json | null,
+"duration_sec": number,
+"error": string | null,
+"finished_at": string | null,
+"heartbeat_at": string | null,
+"id": string,
+"new_finding_ids": (string)[],
+"open_finding_ids": (string)[],
+"project_id": string,
+"resolved_finding_ids": (string)[],
+"stage_index": number,
+"stages": (string)[],
+"started_at": string,
+"status": string,
+"trigger": string,
+"user_id": string
+            }[]
+                          SetofOptions: {
+        from: "*"
+        to: "scans"
+        isOneToOne: false
+        isSetofReturn: true
+      } },
+"recover_stale_scans":
+{ Args: { "max_attempts"?: number,"queued_timeout"?: string,"stale_after"?: string }; Returns: number
+                           }
           }
           Enums: {
             [_ in never]: never
