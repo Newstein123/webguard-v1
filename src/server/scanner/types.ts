@@ -1,4 +1,5 @@
 import type { Severity } from "@/lib/types";
+import type { CheckId } from "@/lib/coverage";
 
 /** A finding as produced by an analyzer, before it is reconciled with history. */
 export interface RawFinding {
@@ -16,8 +17,16 @@ export interface RawFinding {
 }
 
 export interface AnalyzerResult {
+  /** The check this result reports on (one per analyzer), for the scan's coverage record. */
+  check: CheckId;
   /** Analyzer ids that completed successfully, so their missing findings can be marked resolved. */
   covered: string[];
+  /** What was examined when the check ran, e.g. "412 packages in package-lock.json". */
+  scope?: string;
+  /** Why the check could not run (covered is then empty). Shown to the user. */
+  skipped?: string;
+  /** Skipped because something went wrong (not because the check didn't apply). The user is warned. */
+  failed?: boolean;
   findings: RawFinding[];
   /** Technologies noticed while scanning. */
   stackHints?: string[];

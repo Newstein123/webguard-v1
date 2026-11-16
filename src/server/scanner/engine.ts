@@ -2,6 +2,7 @@ import "server-only";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { FindingRow, ProjectRow, ScanRow } from "@/lib/db";
 import type { ScanTrigger } from "@/lib/types";
+import type { CheckId } from "@/lib/coverage";
 import type { AnalyzerResult, RawFinding, RepoSnapshot } from "./types";
 import { fetchSnapshot, GitHubError } from "./github";
 import { ScanHttpError, type SafeResponse } from "./http";
@@ -10,6 +11,7 @@ import { analyzeDependencies } from "./analyzers/dependencies";
 import { analyzeSupabaseRls } from "./analyzers/supabase-rls";
 import { analyzeBundles, analyzeHeaders, fetchSite } from "./analyzers/site";
 import { detectStack } from "./stack";
+import { buildCoverage, runCheck, scanWarning } from "./coverage";
 
 const STALE_AFTER_MS = 15 * 60_000;
 
@@ -43,9 +45,9 @@ function stagesFor(project: Pick<ProjectRow, "source" | "url">): Stage[] {
           ctx.snapshot = await fetchSnapshot(owner, repo, ctx.project.monitoring?.branch);
         },
       },
-      { label: "Scanning source for leaked secrets", run: async (ctx) => void ctx.results.push(analyzeRepoSecrets(ctx.snapshot!)) },
-      { label: "Checking dependencies against advisories", run: async (ctx) => void ctx.results.push(await analyzeDependencies(ctx.snapshot!)) },
-      { label: "Analyzing database access policies", run: async (ctx) => void ctx.results.push(analyzeSupabaseRls(ctx.snapshot!)) },
+      { label: "Scanning source for leaked secrets", run: async (ctx) => void ctx.results.push(await guarded(ctx, "repo-secrets", () => analyzeRepoSecrets(ctx.snapshot!))) },
+      { label: "Checking dependencies against advisories", run: async (ctx) => void ctx.results.push(await guarded(ctx, "deps", () => analyzeDependencies(ctx.snapshot!))) },
+      { label: "Analyzing database access policies", run: async (ctx) => void ctx.results.push(await guarded(ctx, "rls", () => analyzeSupabaseRls(ctx.snapshot!))) },
     );
   }
   if (project.url) {
@@ -66,7 +68,7 @@ function stagesFor(project: Pick<ProjectRow, "source" | "url">): Stage[] {
       {
         label: "Scanning live site JavaScript for leaked keys",
         run: async (ctx) => {
-          if (ctx.page) ctx.results.push(await analyzeBundles(ctx.page));
+          if (ctx.page) ctx.results.push(await guarded(ctx, "site-bundle", () => analyzeBundles(ctx.page!)));
         },
       },
     );
@@ -74,6 +76,10 @@ function stagesFor(project: Pick<ProjectRow, "source" | "url">): Stage[] {
   stages.push({ label: "Comparing with previous scan", run: async () => {} });
   return stages;
 }
+
+/** An analyzer crash skips that one check instead of failing the scan. */
+const guarded = (ctx: Ctx, check: CheckId, fn: Parameters<typeof runCheck>[1]) =>
+  runCheck(check, fn, (e) => console.error(`[scan] ${ctx.project.id}: ${check} check failed`, e));
 
 /** Creates a queued scan row. Throws ScanBusyError if one is already active. */
 export async function createScan(project: ProjectRow, trigger: ScanTrigger): Promise<ScanRow> {
@@ -129,7 +135,8 @@ export async function runScan(scanId: string): Promise<void> {
         status: "completed",
         stage_index: stages.length,
         commit: ctx.snapshot?.commit ?? null,
-        error: ctx.siteError ? `Live site checks skipped: ${ctx.siteError}` : null,
+        error: scanWarning(ctx.results, ctx.siteError),
+        coverage: buildCoverage(project, ctx.results, ctx.siteError),
         finished_at: new Date().toISOString(),
         duration_sec: Math.max(1, Math.round((Date.now() - started) / 1000)),
         ...outcome,

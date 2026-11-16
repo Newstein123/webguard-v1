@@ -7,14 +7,17 @@ import { useFindingsMap, useProjectScans, useScan } from "@/lib/data";
 import { RULES_BY_ID } from "@/lib/rules";
 import type { Finding } from "@/lib/types";
 import { SEVERITY_ORDER, countBySeverity, formatDateTime, formatDuration, securityScore } from "@/lib/utils";
-import { Card, CardHeader, EmptyState, LinkButton } from "@/components/ui";
+import { Badge, Card, CardHeader, EmptyState, LinkButton } from "@/components/ui";
 import { ScoreChip, SeverityBadge, SeverityCounts, TriggerBadge } from "@/components/security";
+import { CoverageChecklist } from "@/components/coverage-checklist";
+import { useExplanationMode } from "@/components/developer-mode";
 
 export default function ScanDetail() {
   const { id, scanId } = useParams<{ id: string; scanId: string }>();
   const scan = useScan(scanId);
   const scans = useProjectScans(id);
   const fmap = useFindingsMap();
+  const developer = useExplanationMode() === "developer";
 
   if (!scan || scan.projectId !== id)
     return (
@@ -89,9 +92,28 @@ export default function ScanDetail() {
 
       {scan.trigger !== "initial" && resolved.length > 0 && <FindingList title="Resolved in this scan" tone="ok" findings={resolved} projectId={id} />}
       {added.length > 0 && (
-        <FindingList title={scan.trigger === "initial" ? "Issues found" : "New in this scan"} tone="high" findings={added} projectId={id} />
+        <FindingList
+          title={scan.trigger === "initial" ? "Issues found" : "New in this scan"}
+          tone="high"
+          findings={added}
+          projectId={id}
+          // A "new" finding first seen in an earlier scan was resolved before and came back.
+          isRegression={(f) => f.firstSeenScanId !== scan.id}
+        />
       )}
       {scan.trigger !== "initial" && unchanged.length > 0 && <FindingList title="Still open" findings={unchanged} projectId={id} />}
+
+      <Card>
+        <CardHeader
+          title="What this scan checked"
+          description={
+            scan.status === "failed"
+              ? "The scan failed, so nothing was checked or verified. Run it again."
+              : "Areas WebGuard checked, skipped, or can't check yet"
+          }
+        />
+        {scan.status !== "failed" && <CoverageChecklist coverage={scan.coverage} developer={developer} className="p-5" />}
+      </Card>
     </div>
   );
 }
@@ -105,7 +127,19 @@ function DiffStat({ label, value, className }: { label: string; value: number; c
   );
 }
 
-function FindingList({ title, findings, projectId, tone }: { title: string; findings: Finding[]; projectId: string; tone?: "ok" | "high" }) {
+function FindingList({
+  title,
+  findings,
+  projectId,
+  tone,
+  isRegression,
+}: {
+  title: string;
+  findings: Finding[];
+  projectId: string;
+  tone?: "ok" | "high";
+  isRegression?: (f: Finding) => boolean;
+}) {
   return (
     <Card>
       <CardHeader
@@ -122,7 +156,12 @@ function FindingList({ title, findings, projectId, tone }: { title: string; find
             <Link href={`/projects/${projectId}/findings/${f.id}`} className="flex items-center gap-4 px-5 py-3.5 hover:bg-surface-2">
               <SeverityBadge severity={f.severity} className="w-20 justify-center" />
               <div className="min-w-0 flex-1">
-                <p className={`truncate text-sm font-medium ${tone === "ok" ? "text-muted line-through" : ""}`}>{RULES_BY_ID[f.ruleId]?.title}</p>
+                <p className={`flex items-center gap-2 text-sm font-medium ${tone === "ok" ? "text-muted line-through" : ""}`}>
+                  <span className="truncate">{RULES_BY_ID[f.ruleId]?.title}</span>
+                  {isRegression?.(f) && (
+                    <Badge className="shrink-0 border-critical/30 bg-critical/12 py-0 text-[11px] font-semibold text-critical">Regressed</Badge>
+                  )}
+                </p>
                 <p className="truncate font-mono text-xs text-muted">{f.location}</p>
               </div>
               <ChevronRight size={16} className="shrink-0 text-muted" />

@@ -1,23 +1,24 @@
+import type { CheckCoverage } from "./coverage";
+
 export type Severity = "critical" | "high" | "medium" | "low" | "info";
 
 export const SEVERITIES: Severity[] = ["critical", "high", "medium", "low", "info"];
 
-export type Category =
-  | "Secrets"
-  | "Auth & Access"
-  | "Database"
-  | "Dependencies"
-  | "Headers & TLS"
-  | "Configuration";
+/** The 10 application-security areas WebGuard reports on. Descriptions live in coverage.ts. */
+export const CATEGORIES = [
+  "Code Security",
+  "Authentication & Authorization",
+  "API Security",
+  "Database Security",
+  "Secrets & Data Protection",
+  "Dependency Security",
+  "Frontend Security",
+  "Infrastructure Security",
+  "File & Input Security",
+  "Runtime & Business Logic",
+] as const;
 
-export const CATEGORIES: Category[] = [
-  "Secrets",
-  "Auth & Access",
-  "Database",
-  "Dependencies",
-  "Headers & TLS",
-  "Configuration",
-];
+export type Category = (typeof CATEGORIES)[number];
 
 export type Schedule = "off" | "daily" | "weekly";
 
@@ -72,6 +73,8 @@ export interface Scan {
   resolvedFindingIds: string[];
   /** findings first detected in this scan */
   newFindingIds: string[];
+  /** What each check did. Absent for failed scans and scans recorded before coverage existed. */
+  coverage?: CheckCoverage[];
 }
 
 export type FindingStatus = "open" | "resolved" | "ignored";
@@ -87,7 +90,18 @@ export interface Finding {
   status: FindingStatus;
   firstSeenScanId: string;
   resolvedInScanId?: string;
+  /** Last scan whose analyzer actually detected this finding. */
+  lastSeenScanId?: string;
+  /** Id of the analyzer that owns this finding (fingerprint prefix, e.g. "rls"). */
+  analyzer: string;
   ignoredReason?: string;
+}
+
+/** How findings are explained. Same findings either way; only presentation differs. */
+export type ExplanationMode = "normal" | "developer";
+
+export interface UserSettings {
+  developerMode: boolean;
 }
 
 export interface CodeExample {
@@ -96,14 +110,48 @@ export interface CodeExample {
   code: string;
 }
 
+export interface CweRef {
+  /** e.g. "CWE-862" */
+  id: string;
+  name: string;
+}
+
+/** Rule-level knowledge used to build copy-paste instructions for AI coding assistants. */
+export interface RuleAiFix {
+  /** Plain-language description of the code change (Normal Mode prompt). */
+  goal: string;
+  /** Security behaviour the code must have after the fix (Developer Mode prompt). */
+  expected: string[];
+  /** Rule-specific limits on the change, in addition to the generic ones. */
+  constraints?: string[];
+  /** Steps the human must do outside the codebase (e.g. rotating a key). */
+  manual?: string[];
+  tests: { simple: string[]; technical: string[] };
+}
+
 export interface Rule {
   id: string;
+  /** Plain-language title, shown in both modes. */
   title: string;
+  /** Precise vulnerability name, shown in Developer Mode. */
+  technicalTitle: string;
   category: Category;
+  /** Normal Mode: what happened. */
   simple: string;
+  /** Developer Mode: technical description of what the analyzer detects. */
   technical: string;
   whyItMatters: string;
+  /** Normal Mode: what could happen to my application. */
+  impact: string;
+  /** Developer Mode. */
+  rootCause: string;
+  attackScenario: string;
+  /** Developer Mode remediation strategy. */
+  remediation: string[];
+  cwe: CweRef[];
+  /** Normal Mode fix steps. */
   steps: string[];
   examples: CodeExample[];
+  ai: RuleAiFix;
   references?: { label: string; href: string }[];
 }

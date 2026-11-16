@@ -58,7 +58,7 @@ export function analyzeHeaders(page: SafeResponse): AnalyzerResult {
   if (h.get("x-nf-request-id") || /netlify/i.test(h.get("server") ?? "")) stackHints.push("Netlify");
   if (/\/_next\//.test(page.body)) stackHints.push("Next.js", "React");
   if (/lovable/i.test(new URL(page.url).hostname)) stackHints.push("Lovable");
-  return { covered: [HEADERS_ID], findings, stackHints };
+  return { check: HEADERS_ID, covered: [HEADERS_ID], findings, stackHints, scope: `Response headers of ${page.url}` };
 }
 
 function scriptUrls(page: SafeResponse): string[] {
@@ -109,5 +109,15 @@ export async function analyzeBundles(page: SafeResponse): Promise<AnalyzerResult
       });
     }
   }
-  return { covered: [BUNDLE_ID], findings, stackHints };
+  const scripts = sources.length - 1;
+  return {
+    check: BUNDLE_ID,
+    covered: [BUNDLE_ID],
+    findings,
+    stackHints,
+    scope:
+      scripts === 0
+        ? `${new URL(page.url).origin} homepage (it loads no scripts from its own domain)`
+        : `${new URL(page.url).origin} homepage and ${scripts} script${scripts === 1 ? "" : "s"} it loads from its own domain`,
+  };
 }

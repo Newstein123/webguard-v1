@@ -43,6 +43,8 @@ npm run db:types    # regenerate src/lib/database.types.ts after a migration
 | RLS disabled or `using (true)` policies | `supabase/migrations/*.sql` | `supabase-rls-disabled`, `supabase-rls-permissive` |
 | Missing security headers / no HTTPS | Live site | `missing-security-headers` |
 
+These checks map onto WebGuard's 10 security areas (four have checks today). Each scan records which checks ran and why any were skipped, and the dashboard shows exactly that. See [docs/security-coverage.md](docs/security-coverage.md).
+
 All live-site checks are **passive**: they make the same GET requests a visitor's browser makes. Active probes, such as requesting `/.env` or querying Supabase tables with the anon key, will require domain verification first.
 
 **Coming next:** scheduled scans, scan-on-push (GitHub App), email alerts, `pnpm` and `yarn` lockfiles, and domain verification.

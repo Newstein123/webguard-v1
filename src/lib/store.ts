@@ -2,7 +2,8 @@
 
 import { create } from "zustand";
 import { supabaseBrowser } from "./supabase/client";
-import { toFinding, toProject, toScan, type FindingRow, type ProjectRow, type ScanRow } from "./db";
+import { toFinding, toProject, toScan, toUserSettings, type FindingRow, type ProjectRow, type ScanRow, type UserSettingsRow } from "./db";
+import { readCachedDeveloperMode, writeCachedDeveloperMode } from "./preferences";
 import type { Finding, MonitoringSettings, Project, Scan } from "./types";
 
 export interface NewProjectInput {
@@ -27,6 +28,8 @@ interface State {
   projects: Project[];
   scans: Scan[];
   findings: Finding[];
+  /** Explanation level for findings. Off by default; persisted per account. */
+  developerMode: boolean;
 }
 
 interface Actions {
@@ -38,6 +41,7 @@ interface Actions {
   reopenFinding: (findingId: string) => Promise<void>;
   updateMonitoring: (projectId: string, patch: Partial<MonitoringSettings>) => Promise<void>;
   deleteProject: (projectId: string) => Promise<void>;
+  setDeveloperMode: (on: boolean) => Promise<void>;
   signOut: () => Promise<void>;
   deleteAccount: () => Promise<void>;
 }
@@ -55,16 +59,19 @@ function check<T>({ data, error }: { data: unknown; error: { message: string } |
   return data as T;
 }
 
+let settingsSave: Promise<unknown> = Promise.resolve();
+
 export const useStore = create<State & Actions>()((set, get) => ({
   status: "idle",
   user: null,
   projects: [],
   scans: [],
   findings: [],
+  developerMode: false,
 
   load: async () => {
     if (get().status !== "idle") return;
-    set({ status: "loading" });
+    set({ status: "loading", developerMode: readCachedDeveloperMode() ?? false });
     try {
       const { data } = await supabaseBrowser().auth.getUser();
       const u = data.user;
@@ -79,7 +86,7 @@ export const useStore = create<State & Actions>()((set, get) => ({
           },
         });
       }
-      await get().refresh();
+      await Promise.all([get().refresh(), u ? loadSettings() : null]);
       set({ status: "ready" });
     } catch (e) {
       console.error(e);
@@ -140,13 +147,44 @@ export const useStore = create<State & Actions>()((set, get) => ({
     });
   },
 
+  setDeveloperMode: async (on) => {
+    const userId = get().user?.id;
+    set({ developerMode: on });
+    writeCachedDeveloperMode(on);
+    if (!userId) return;
+    // Serialize saves so rapid toggles reach the database in click order.
+    const save = settingsSave.then(() =>
+      supabaseBrowser()
+        .from("user_settings")
+        // user_id is filled by the column default (auth.uid()); clients are not granted write access to it.
+        .upsert({ developer_mode: on, updated_at: new Date().toISOString() }, { onConflict: "user_id" }),
+    );
+    settingsSave = save.catch(() => undefined);
+    const { error } = await save;
+    // The choice still applies on this device; surface that it was not saved to the account.
+    if (error) throw new Error("Couldn’t save Developer Mode to your account. It’s saved on this device only.");
+  },
+
   signOut: async () => {
     await supabaseBrowser().auth.signOut();
-    set({ status: "idle", user: null, projects: [], scans: [], findings: [] });
+    set({ status: "idle", user: null, projects: [], scans: [], findings: [], developerMode: false });
   },
 
   deleteAccount: async () => {
     await api("/api/account", { method: "DELETE" });
-    set({ status: "idle", user: null, projects: [], scans: [], findings: [] });
+    writeCachedDeveloperMode(false);
+    set({ status: "idle", user: null, projects: [], scans: [], findings: [], developerMode: false });
   },
 }));
+
+/** Account preferences win over the device cache. Failures keep the cached value. */
+async function loadSettings() {
+  const { data, error } = await supabaseBrowser().from("user_settings").select("*").maybeSingle();
+  if (error) {
+    console.warn("[settings] using device preference:", error.message);
+    return;
+  }
+  const { developerMode } = toUserSettings(data as UserSettingsRow | null);
+  writeCachedDeveloperMode(developerMode);
+  useStore.setState({ developerMode });
+}

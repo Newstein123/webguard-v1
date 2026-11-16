@@ -1,5 +1,6 @@
 /** Row ↔ domain mappers shared by the browser data layer and the server. */
-import type { Finding, MonitoringSettings, Project, Scan } from "./types";
+import type { CheckCoverage } from "./coverage";
+import type { Finding, MonitoringSettings, Project, Scan, UserSettings } from "./types";
 
 export interface ProjectRow {
   id: string;
@@ -29,6 +30,7 @@ export interface ScanRow {
   open_finding_ids: string[];
   new_finding_ids: string[];
   resolved_finding_ids: string[];
+  coverage: CheckCoverage[] | null;
 }
 
 export interface FindingRow {
@@ -75,6 +77,7 @@ export const toScan = (r: ScanRow): Scan => ({
   openFindingIds: r.open_finding_ids,
   newFindingIds: r.new_finding_ids,
   resolvedFindingIds: r.resolved_finding_ids,
+  coverage: r.coverage ?? undefined,
 });
 
 export const toFinding = (r: FindingRow): Finding => ({
@@ -88,5 +91,17 @@ export const toFinding = (r: FindingRow): Finding => ({
   status: r.status,
   firstSeenScanId: r.first_seen_scan_id ?? "",
   resolvedInScanId: r.resolved_in_scan_id ?? undefined,
+  lastSeenScanId: r.last_seen_scan_id ?? undefined,
+  analyzer: r.fingerprint.split(":")[0],
   ignoredReason: r.ignored_reason ?? undefined,
+});
+
+export interface UserSettingsRow {
+  user_id: string;
+  developer_mode: boolean;
+  updated_at: string;
+}
+
+export const toUserSettings = (r: UserSettingsRow | null): UserSettings => ({
+  developerMode: r?.developer_mode ?? false,
 });

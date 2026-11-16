@@ -1,10 +1,29 @@
 # WebGuard security coverage
 
-_Last updated: 2026-11-11 (v1 MVP)_
+_Last updated: 2026-11-12 (v1 MVP)_
 
 This page lists what a WebGuard scan checks today, where those checks have blind spots, and what is not covered yet. Update it whenever an analyzer is added or changed. The code lives in `src/server/scanner/analyzers/`.
 
 > WebGuard reduces risk but cannot guarantee security. A clean scan means that **no known issues were found by the checks below**. It does not mean the app is secure.
+
+## The 10 security areas
+
+The dashboard reports coverage per area. Each scan stores what every check did (`scans.coverage`): it either **ran** (with what it examined) or was **skipped** (with the reason). The dashboard shows only what was stored, never what the project type implies. The mapping lives in `src/lib/coverage.ts`; keep it in sync with this page.
+
+| # | Area | Checks today | Dashboard status when they all run |
+|---|---|---|---|
+| 1 | Code Security | none | Not checked yet |
+| 2 | Authentication & Authorization | none | Not checked yet |
+| 3 | API Security | none | Not checked yet |
+| 4 | Database Security | `rls` | Checked |
+| 5 | Secrets & Data Protection | `repo-secrets`, `site-bundle` | Checked (Partly checked if one is skipped) |
+| 6 | Dependency Security | `deps` | Checked |
+| 7 | Frontend Security | `site-headers` | Checked |
+| 8 | Infrastructure Security | none | Not checked yet |
+| 9 | File & Input Security | none | Not checked yet |
+| 10 | Runtime & Business Logic | none | Not checked yet |
+
+"Checked" means the area's checks ran, not that the area is fully covered: each check's scope and blind spots are listed below. Never add a placeholder check to fill an area. When a new analyzer ships, add it to `CHECKS` in `src/lib/coverage.ts` and return `check`, `scope` and `skipped` from the analyzer.
 
 ## ✅ Covered
 

@@ -61,5 +61,5 @@ export function analyzeRepoSecrets(snap: RepoSnapshot): AnalyzerResult {
     }
   }
 
-  return { covered: [ID], findings };
+  return { check: ID, covered: [ID], findings, scope: `${snap.files.length} file${snap.files.length === 1 ? "" : "s"} in ${snap.owner}/${snap.repo}@${snap.ref}` };
 }

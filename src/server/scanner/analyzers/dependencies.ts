@@ -74,16 +74,35 @@ function fixedVersion(v: OsvVuln, pkg: string): string | undefined {
   }
 }
 
-async function osvPost<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${OSV}${path}`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(30_000),
-  });
-  if (!res.ok) throw new Error(`OSV API error (${res.status})`);
-  return res.json() as Promise<T>;
+/** OSV could not be reached or answered with an error, after retries. */
+export class OsvUnavailableError extends Error {}
+
+/** Backoff between attempts; exported so tests can shorten it. */
+export const osvRetry = { delaysMs: [500, 1500] };
+
+/**
+ * GET/POST against OSV with retries for transient failures (network errors,
+ * timeouts, 429, 5xx). Any other non-OK status fails immediately.
+ */
+async function osvFetch<T>(path: string, init: RequestInit & { timeoutMs: number }): Promise<T> {
+  let reason = "";
+  for (let attempt = 0; attempt <= osvRetry.delaysMs.length; attempt++) {
+    if (attempt) await new Promise((r) => setTimeout(r, osvRetry.delaysMs[attempt - 1]));
+    try {
+      const res = await fetch(`${OSV}${path}`, { ...init, signal: AbortSignal.timeout(init.timeoutMs) });
+      if (res.ok) return (await res.json()) as T;
+      reason = `HTTP ${res.status}`;
+      if (res.status !== 429 && res.status < 500) break;
+    } catch (e) {
+      const cause = (e as { cause?: { code?: string } }).cause?.code;
+      reason = cause ?? (e instanceof Error ? e.message : String(e));
+    }
+  }
+  throw new OsvUnavailableError(reason);
 }
+
+const osvPost = <T>(path: string, body: unknown) =>
+  osvFetch<T>(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), timeoutMs: 30_000 });
 
 async function mapLimit<T, R>(items: T[], limit: number, fn: (t: T) => Promise<R>): Promise<R[]> {
   const out: R[] = new Array(items.length);
@@ -99,17 +118,36 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (t: T) => Promise<R
   return out;
 }
 
-export async function analyzeDependencies(snap: RepoSnapshot): Promise<AnalyzerResult & { notes: string[] }> {
-  const notes: string[] = [];
+export async function analyzeDependencies(snap: RepoSnapshot): Promise<AnalyzerResult> {
   const lockfiles = snap.files.filter((f) => /(^|\/)package-lock\.json$/.test(f.path));
   if (lockfiles.length === 0) {
     const other = snap.allPaths.find((p) => /(^|\/)(pnpm-lock\.yaml|yarn\.lock|bun\.lockb?)$/.test(p));
-    notes.push(other ? `Only package-lock.json is supported right now (found ${other}).` : "No package-lock.json found.");
     // Without a lockfile we cannot tell, so do not resolve existing dependency findings.
-    return { covered: [], findings: [], notes };
+    return {
+      check: ID,
+      covered: [],
+      findings: [],
+      skipped: other ? `Only npm's package-lock.json is supported so far (found ${other}).` : "No package-lock.json found in the repository.",
+    };
   }
 
   const pkgs = lockfiles.flatMap((f) => parsePackageLock(f.content, f.path));
+  try {
+    return await auditPackages(pkgs, lockfiles.map((f) => f.path).join(", "));
+  } catch (e) {
+    if (!(e instanceof OsvUnavailableError)) throw e;
+    // Never claim coverage on partial data: that would mark open dependency findings as resolved.
+    return {
+      check: ID,
+      covered: [],
+      findings: [],
+      failed: true,
+      skipped: `Couldn't reach the OSV advisory database (${e.message}). Existing dependency findings were left unchanged. Run the scan again.`,
+    };
+  }
+}
+
+async function auditPackages(pkgs: Pkg[], files: string): Promise<AnalyzerResult> {
   const results: { vulns?: { id: string }[] }[] = [];
   for (let i = 0; i < pkgs.length; i += 1000) {
     const batch = pkgs.slice(i, i + 1000);
@@ -121,9 +159,9 @@ export async function analyzeDependencies(snap: RepoSnapshot): Promise<AnalyzerR
 
   const ids = [...new Set(results.flatMap((r) => r.vulns?.map((v) => v.id) ?? []))].slice(0, MAX_VULN_DETAILS);
   const details = new Map<string, OsvVuln>();
+  // Every advisory must load: a silently missing one would hide a vulnerable package.
   await mapLimit(ids, 8, async (id) => {
-    const res = await fetch(`${OSV}/vulns/${encodeURIComponent(id)}`, { signal: AbortSignal.timeout(15_000) });
-    if (res.ok) details.set(id, (await res.json()) as OsvVuln);
+    details.set(id, await osvFetch<OsvVuln>(`/vulns/${encodeURIComponent(id)}`, { timeoutMs: 15_000 }));
   });
 
   // One finding per package name; severity is the worst advisory.
@@ -163,5 +201,5 @@ export async function analyzeDependencies(snap: RepoSnapshot): Promise<AnalyzerR
       evidenceLang: "text",
     });
   }
-  return { covered: [ID], findings, notes };
+  return { check: ID, covered: [ID], findings, scope: `${pkgs.length} package${pkgs.length === 1 ? "" : "s"} in ${files}` };
 }

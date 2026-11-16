@@ -77,14 +77,14 @@ isOneToOne: false
                   ]
                 },"scans": {
                   Row: {
-                    "commit": Json | null,"duration_sec": number,"error": string | null,"finished_at": string | null,"id": string,"new_finding_ids": (string)[],"open_finding_ids": (string)[],"project_id": string,"resolved_finding_ids": (string)[],"stage_index": number,"stages": (string)[],"started_at": string,"status": string,"trigger": string,"user_id": string
+                    "commit": Json | null,"coverage": Json | null,"duration_sec": number,"error": string | null,"finished_at": string | null,"id": string,"new_finding_ids": (string)[],"open_finding_ids": (string)[],"project_id": string,"resolved_finding_ids": (string)[],"stage_index": number,"stages": (string)[],"started_at": string,"status": string,"trigger": string,"user_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "commit"?: Json | null,"duration_sec"?: number,"error"?: string | null,"finished_at"?: string | null,"id"?: string,"new_finding_ids"?: (string)[],"open_finding_ids"?: (string)[],"project_id": string,"resolved_finding_ids"?: (string)[],"stage_index"?: number,"stages"?: (string)[],"started_at"?: string,"status"?: string,"trigger": string,"user_id": string
+                    "commit"?: Json | null,"coverage"?: Json | null,"duration_sec"?: number,"error"?: string | null,"finished_at"?: string | null,"id"?: string,"new_finding_ids"?: (string)[],"open_finding_ids"?: (string)[],"project_id": string,"resolved_finding_ids"?: (string)[],"stage_index"?: number,"stages"?: (string)[],"started_at"?: string,"status"?: string,"trigger": string,"user_id": string
                   }
                   Update: {
-                    "commit"?: Json | null,"duration_sec"?: number,"error"?: string | null,"finished_at"?: string | null,"id"?: string,"new_finding_ids"?: (string)[],"open_finding_ids"?: (string)[],"project_id"?: string,"resolved_finding_ids"?: (string)[],"stage_index"?: number,"stages"?: (string)[],"started_at"?: string,"status"?: string,"trigger"?: string,"user_id"?: string
+                    "commit"?: Json | null,"coverage"?: Json | null,"duration_sec"?: number,"error"?: string | null,"finished_at"?: string | null,"id"?: string,"new_finding_ids"?: (string)[],"open_finding_ids"?: (string)[],"project_id"?: string,"resolved_finding_ids"?: (string)[],"stage_index"?: number,"stages"?: (string)[],"started_at"?: string,"status"?: string,"trigger"?: string,"user_id"?: string
                   }
                   Relationships: [
                     {
@@ -94,6 +94,20 @@ isOneToOne: false
       referencedRelation: "projects"
       referencedColumns: ["id"]
     }
+                  ]
+                },"user_settings": {
+                  Row: {
+                    "developer_mode": boolean,"updated_at": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "developer_mode"?: boolean,"updated_at"?: string,"user_id"?: string
+                  }
+                  Update: {
+                    "developer_mode"?: boolean,"updated_at"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    
                   ]
                 }
           }

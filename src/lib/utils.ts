@@ -14,10 +14,10 @@ const WEIGHTS: Record<Severity, number> = { critical: 25, high: 12, medium: 5, l
  * (e.g. 20 transitive npm advisories, or five missing headers) should not
  * outweigh one real data leak. Categories not listed are uncapped.
  */
-const CATEGORY_CAP: Partial<Record<Category, number>> = {
-  Dependencies: 35,
-  "Headers & TLS": 10,
-  Configuration: 20,
+const CATEGORY_CAP: Partial<Record<Category | "unknown", number>> = {
+  "Dependency Security": 35,
+  "Frontend Security": 10,
+  unknown: 20,
 };
 
 /** Severity sets a ceiling: a single open critical can never look "Good". */
@@ -28,12 +28,12 @@ export function securityScore(open: Pick<Finding, "severity" | "ruleId">[]): num
   const byCategory = new Map<string, number>();
   let ceiling = 100;
   for (const f of open) {
-    const category = RULES_BY_ID[f.ruleId]?.category ?? "Configuration";
+    const category = RULES_BY_ID[f.ruleId]?.category ?? "unknown";
     byCategory.set(category, (byCategory.get(category) ?? 0) + WEIGHTS[f.severity]);
     ceiling = Math.min(ceiling, SEVERITY_CEILING[f.severity] ?? 100);
   }
   let penalty = 0;
-  for (const [category, p] of byCategory) penalty += Math.min(p, CATEGORY_CAP[category as Category] ?? Infinity);
+  for (const [category, p] of byCategory) penalty += Math.min(p, CATEGORY_CAP[category as Category | "unknown"] ?? Infinity);
   return Math.max(0, Math.min(ceiling, 100 - penalty));
 }
 

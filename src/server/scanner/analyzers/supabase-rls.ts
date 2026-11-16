@@ -60,7 +60,8 @@ export function analyzeSupabaseRls(snap: RepoSnapshot): AnalyzerResult {
     .sort((a, b) => a.path.localeCompare(b.path));
 
   const stackHints = snap.allPaths.some((p) => p.startsWith("supabase/")) ? ["Supabase"] : [];
-  if (sqlFiles.length === 0) return { covered: [], findings: [], stackHints };
+  if (sqlFiles.length === 0)
+    return { check: ID, covered: [], findings: [], stackHints, skipped: "No supabase/migrations/*.sql files found in the repository." };
 
   const tables = new Map<string, Table>();
   const policies = new Map<string, Policy>();
@@ -150,5 +151,11 @@ export function analyzeSupabaseRls(snap: RepoSnapshot): AnalyzerResult {
     });
   }
 
-  return { covered: [ID], findings, stackHints: ["Supabase", "PostgreSQL"] };
+  return {
+    check: ID,
+    covered: [ID],
+    findings,
+    stackHints: ["Supabase", "PostgreSQL"],
+    scope: `${sqlFiles.length} migration file${sqlFiles.length === 1 ? "" : "s"}, ${tables.size} public table${tables.size === 1 ? "" : "s"}`,
+  };
 }

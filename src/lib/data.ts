@@ -8,6 +8,8 @@ import { useMemo } from "react";
 import { useStore } from "./store";
 import { RULES_BY_ID } from "./rules";
 import { SEVERITY_ORDER, securityScore } from "./utils";
+import { verifyFinding, type VerificationState } from "./verification";
+import type { Finding } from "./types";
 
 export function useProjects() {
   return useStore((s) => s.projects);
@@ -68,6 +70,19 @@ export function useProjectSummary(projectId: string) {
     const open = findings.filter((f) => f.status === "open");
     return { open, score: securityScore(open), lastScan: scans[0], scans, findings };
   }, [findings, scans]);
+}
+
+/**
+ * Re-scan verification state for each of a project's findings, keyed by finding id.
+ * Uses every scan (including failed ones) so a failed verification is visible.
+ */
+export function useProjectVerification(projectId: string): Map<string, VerificationState | null> {
+  const scans = useStore((s) => s.scans);
+  const findings = useProjectFindings(projectId);
+  return useMemo(() => {
+    const history = scans.filter((s) => s.projectId === projectId);
+    return new Map(findings.map((f: Finding) => [f.id, verifyFinding(f, history)]));
+  }, [scans, findings, projectId]);
 }
 
 export function getRule(ruleId: string) {

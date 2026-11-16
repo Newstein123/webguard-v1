@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Activity, BookOpen, ChevronDown, LayoutDashboard, LogOut, Menu, Plus, Trash2, X } from "lucide-react";
 import { Logo, ThemeToggle } from "./brand";
 import { ScanRunnerProvider } from "./scan-runner";
+import { DeveloperModeToggle } from "./developer-mode";
 import { useStore } from "@/lib/store";
 import { useProjects } from "@/lib/data";
 import { cn, securityScore, scoreGrade } from "@/lib/utils";
@@ -53,6 +54,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Menu size={22} />
             </button>
             <div className="flex-1" />
+            <DeveloperModeToggle />
             <ThemeToggle />
             <UserMenu />
           </header>

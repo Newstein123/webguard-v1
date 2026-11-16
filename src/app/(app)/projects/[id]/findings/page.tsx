@@ -4,12 +4,14 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { ChevronRight, Search, ShieldCheck } from "lucide-react";
-import { useProjectFindings } from "@/lib/data";
+import { useProjectFindings, useProjectVerification } from "@/lib/data";
 import { RULES_BY_ID } from "@/lib/rules";
 import { CATEGORIES, SEVERITIES, type Category, type FindingStatus, type Severity } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Card, EmptyState, Input, Segmented, Select } from "@/components/ui";
 import { SeverityBadge } from "@/components/security";
+import { useExplanationMode } from "@/components/developer-mode";
+import { VerificationBadge } from "@/components/finding-explainer";
 
 const STATUS_STYLE: Record<FindingStatus, string> = {
   open: "text-foreground",
@@ -20,6 +22,8 @@ const STATUS_STYLE: Record<FindingStatus, string> = {
 export default function FindingsPage() {
   const { id } = useParams<{ id: string }>();
   const findings = useProjectFindings(id);
+  const verification = useProjectVerification(id);
+  const developer = useExplanationMode() === "developer";
   const [status, setStatus] = useState<FindingStatus | "all">("open");
   const [severity, setSeverity] = useState<Severity | "all">("all");
   const [category, setCategory] = useState<Category | "all">("all");
@@ -40,7 +44,7 @@ export default function FindingsPage() {
     if (status !== "all" && f.status !== status) return false;
     if (severity !== "all" && f.severity !== severity) return false;
     if (category !== "all" && rule?.category !== category) return false;
-    if (q && !`${rule?.title} ${f.location}`.toLowerCase().includes(q.toLowerCase())) return false;
+    if (q && !`${rule?.title} ${rule?.technicalTitle} ${f.ruleId} ${f.location}`.toLowerCase().includes(q.toLowerCase())) return false;
     return true;
   });
 
@@ -102,6 +106,7 @@ export default function FindingsPage() {
             <ul className="divide-y">
               {filtered.map((f) => {
                 const rule = RULES_BY_ID[f.ruleId];
+                const v = verification.get(f.id);
                 return (
                   <li key={f.id}>
                     <Link
@@ -115,7 +120,13 @@ export default function FindingsPage() {
                         <span className={cn("block truncate text-sm font-medium", f.status !== "open" && "text-muted line-through decoration-1")}>
                           {rule?.title}
                         </span>
-                        <span className="block truncate font-mono text-xs text-muted">{f.location}</span>
+                        <span className="flex min-w-0 items-center gap-2">
+                          {v && <VerificationBadge state={v} className="shrink-0 py-0 text-[11px]" />}
+                          <span className="truncate font-mono text-xs text-muted">
+                            {developer && <span className="text-foreground/70">{f.ruleId} · </span>}
+                            {f.location}
+                          </span>
+                        </span>
                       </span>
                       <span className="hidden text-sm text-muted md:block">{rule?.category}</span>
                       <span className={cn("hidden text-sm capitalize md:block", STATUS_STYLE[f.status])}>{f.status}</span>

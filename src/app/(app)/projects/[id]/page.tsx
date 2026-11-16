@@ -9,12 +9,18 @@ import { countBySeverity, scoreGrade } from "@/lib/utils";
 import { Card, CardHeader, EmptyState, LinkButton } from "@/components/ui";
 import { ScoreGauge, SeverityBadge, SeverityBar, SeverityCounts } from "@/components/security";
 import { ScanTimeline } from "@/components/scan-timeline";
+import { CoverageChecklist } from "@/components/coverage-checklist";
+import { useExplanationMode } from "@/components/developer-mode";
+import { checkedAreaCount } from "@/lib/coverage";
 import { TrendChart } from "@/components/trend-chart";
 
 export default function ProjectOverview() {
   const { id } = useParams<{ id: string }>();
   const project = useProject(id)!;
-  const { open, score, scans, findings } = useProjectSummary(id);
+  const { open, score, scans, findings, lastScan } = useProjectSummary(id);
+  const developer = useExplanationMode() === "developer";
+  const areas = lastScan?.coverage ? checkedAreaCount(lastScan.coverage) : undefined;
+  const areasText = areas === undefined ? undefined : `${areas} area${areas === 1 ? "" : "s"}`;
   const counts = countBySeverity(open);
   const { label } = scoreGrade(score);
   const resolvedCount = findings.filter((f) => f.status === "resolved").length;
@@ -28,13 +34,22 @@ export default function ProjectOverview() {
           <div className="flex flex-col justify-center">
             <p className="text-sm text-muted">Security score</p>
             <p className="mt-1 text-lg font-semibold">
-              {open.length === 0
-                ? "No open issues. Your app looks solid."
-                : `${label}: ${open.length} open issue${open.length === 1 ? "" : "s"}`}
+              {open.length > 0
+                ? `${label}: ${open.length} open issue${open.length === 1 ? "" : "s"}`
+                : areas === 0
+                  ? "The last scan couldn’t check any area."
+                  : areasText
+                    ? `No issues found in the ${areasText} WebGuard checked.`
+                    : "No open issues found by WebGuard’s checks."}
             </p>
             <SeverityBar counts={counts} className="mt-4" />
             <SeverityCounts counts={counts} showZero className="mt-3" />
-            <p className="mt-4 text-xs text-muted">
+            {areasText && (
+              <p className="mt-4 text-xs text-muted">
+                The score only reflects the {areasText} checked in the last scan. See Coverage for what wasn’t checked.
+              </p>
+            )}
+            <p className="mt-2 text-xs text-muted">
               {resolvedCount} issue{resolvedCount === 1 ? "" : "s"} resolved since you connected this app.
             </p>
           </div>
@@ -79,13 +94,20 @@ export default function ProjectOverview() {
       </div>
 
       <div className="space-y-6">
-        <Card className="p-5">
-          <p className="text-sm font-medium">Coverage</p>
-          <ul className="mt-3 space-y-2 text-sm text-muted">
-            {project.repo && <li>Source code: secrets, dependencies, database policies</li>}
-            {project.url ? <li>Live site: security headers, keys in JavaScript</li> : <li>Add a deployed URL to also check your live site</li>}
-          </ul>
-          <p className="mt-3 text-xs text-muted">Automatic monitoring is coming soon. For now, re-scan after each change.</p>
+        <Card id="coverage">
+          <CardHeader
+            title="Coverage"
+            description={lastScan ? "What the last scan actually checked" : "Shown after your first scan completes"}
+            action={
+              lastScan && (
+                <Link href={`/projects/${id}/scans/${lastScan.id}`} className="shrink-0 text-xs text-primary hover:underline">
+                  View scan
+                </Link>
+              )
+            }
+          />
+          {lastScan && <CoverageChecklist coverage={lastScan.coverage} developer={developer} className="p-5" />}
+          <p className="border-t px-5 py-3 text-xs text-muted">Automatic monitoring is coming soon. For now, re-scan after each change.</p>
         </Card>
 
         <Card>
