@@ -21,7 +21,7 @@ export function analyzerInfo(id: string): AnalyzerInfo {
 }
 
 export interface AffectedResource {
-  label: "File" | "Line" | "Table" | "Policy" | "URL" | "Package" | "Version" | "Lockfile" | "Location";
+  label: "File" | "Line" | "Endpoint" | "Table" | "Policy" | "URL" | "Package" | "Version" | "Lockfile" | "Location";
   value: string;
 }
 
@@ -37,6 +37,15 @@ export function affectedResources(finding: Pick<Finding, "analyzer" | "location"
     case "repo-secrets":
       if ((m = loc.match(/^(.+):(\d+)$/))) return [{ label: "File", value: m[1] }, { label: "Line", value: m[2] }];
       return [{ label: "File", value: loc }];
+    case "api-auth":
+      // "app/api/x/route.ts:12 → GET, POST /api/x"
+      if ((m = loc.match(/^(.+?)(?::(\d+))? → (.+)$/)))
+        return [
+          { label: "Endpoint", value: m[3] },
+          { label: "File", value: m[1] },
+          ...(m[2] ? [{ label: "Line" as const, value: m[2] }] : []),
+        ];
+      break;
     case "deps":
       if ((m = loc.match(/^(.+?) → ((?:@[^/\s]+\/)?[^@\s]+)@(\S+)( \(dev\))?$/)))
         return [

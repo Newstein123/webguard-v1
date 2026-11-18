@@ -10,6 +10,7 @@ import { ScanHttpError, type SafeResponse } from "./http";
 import { analyzeRepoSecrets } from "./analyzers/repo-secrets";
 import { analyzeDependencies } from "./analyzers/dependencies";
 import { analyzeSupabaseRls } from "./analyzers/supabase-rls";
+import { analyzeApiAuth } from "./analyzers/api-auth";
 import { analyzeBundles, analyzeHeaders, fetchSite } from "./analyzers/site";
 import { detectStack } from "./stack";
 import { buildCoverage, runCheck, scanWarning } from "./coverage";
@@ -52,6 +53,7 @@ function stagesFor(project: Pick<ProjectRow, "source" | "url">): Stage[] {
       { label: "Scanning source for leaked secrets", run: async (ctx) => void ctx.results.push(await guarded(ctx, "repo-secrets", () => analyzeRepoSecrets(ctx.snapshot!))) },
       { label: "Checking dependencies against advisories", run: async (ctx) => void ctx.results.push(await guarded(ctx, "deps", () => analyzeDependencies(ctx.snapshot!))) },
       { label: "Analyzing database access policies", run: async (ctx) => void ctx.results.push(await guarded(ctx, "rls", () => analyzeSupabaseRls(ctx.snapshot!))) },
+      { label: "Checking API routes for missing login checks", run: async (ctx) => void ctx.results.push(await guarded(ctx, "api-auth", () => analyzeApiAuth(ctx.snapshot!))) },
     );
   }
   if (project.url) {

@@ -169,6 +169,24 @@ function RefList({ refs }: { refs: { id: string; href: string; title?: string }[
 
 export function AiFixAssistant({ finding, rule, mode, project }: FindingProps) {
   const prompt = useMemo(() => buildFixPrompt({ finding, rule, mode, project }), [finding, rule, mode, project]);
+  return (
+    <Card>
+      <PromptPanel
+        title="AI Fix Assistant"
+        description={
+          mode === "developer"
+            ? "Technical prompt with evidence, constraints and verification requirements."
+            : "Easy instructions to paste into Cursor, Lovable, Bolt or any AI coding assistant."
+        }
+        prompt={prompt}
+        footnote="Secrets are never included. Review every change the assistant makes. WebGuard only marks this issue fixed after a re-scan confirms it is gone."
+      />
+    </Card>
+  );
+}
+
+/** Prompt preview with a Copy Instructions button. Shared by single-issue and fix-all prompts. */
+export function PromptPanel({ title, description, prompt, footnote }: { title: string; description: string; prompt: string; footnote: string }) {
   const preRef = useRef<HTMLPreElement>(null);
   const [copied, setCopied] = useState(false);
 
@@ -187,17 +205,13 @@ export function AiFixAssistant({ finding, rule, mode, project }: FindingProps) {
   };
 
   return (
-    <Card>
+    <>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3">
         <div className="min-w-0">
           <h3 className="flex items-center gap-2 font-semibold">
-            <Wand2 size={16} className="text-primary" /> AI Fix Assistant
+            <Wand2 size={16} className="text-primary" /> {title}
           </h3>
-          <p className="text-xs text-muted">
-            {mode === "developer"
-              ? "Technical prompt with evidence, constraints and verification requirements."
-              : "Easy instructions to paste into Cursor, Lovable, Bolt or any AI coding assistant."}
-          </p>
+          <p className="text-xs text-muted">{description}</p>
         </div>
         <Button size="sm" onClick={copy} aria-live="polite">
           {copied ? <Check size={14} /> : <ClipboardCopy size={14} />}
@@ -215,10 +229,10 @@ export function AiFixAssistant({ finding, rule, mode, project }: FindingProps) {
         </pre>
         <p className="flex items-start gap-2 text-xs text-muted">
           <Sparkles size={13} className="mt-0.5 shrink-0" />
-          Secrets are never included. Review every change the assistant makes. WebGuard only marks this issue fixed after a re-scan confirms it is gone.
+          {footnote}
         </p>
       </div>
-    </Card>
+    </>
   );
 }
 

@@ -21,7 +21,7 @@ export const CATEGORY_DESCRIPTION: Record<Category, string> = {
   "Runtime & Business Logic": "Abuse, workflows, runtime vulnerabilities",
 };
 
-export type CheckId = "repo-secrets" | "deps" | "rls" | "site-headers" | "site-bundle";
+export type CheckId = "repo-secrets" | "deps" | "rls" | "api-auth" | "site-headers" | "site-bundle";
 
 export interface CheckDef {
   id: CheckId;
@@ -65,8 +65,18 @@ export const CHECKS: CheckDef[] = [
     name: "Dependency audit",
     category: "Dependency Security",
     source: "repo",
-    covers: "npm packages in package-lock.json, checked against the OSV advisory database",
-    method: "Lockfile package versions matched against the OSV advisory database.",
+    covers: "npm packages in package-lock.json, pnpm-lock.yaml, yarn.lock or bun.lock, checked against the OSV advisory database",
+    method: "Lockfile package versions (npm, pnpm, yarn, bun) matched against the OSV advisory database.",
+  },
+  {
+    id: "api-auth",
+    name: "API route auth check",
+    category: "API Security",
+    source: "repo",
+    covers:
+      "Next.js route handlers, pages/api routes and Supabase Edge Functions that use admin database access without checking who is calling (Express and other servers not yet)",
+    method:
+      "Static analysis: routes using a privileged data client (service-role key, admin client, Prisma, Drizzle, raw drivers, Firebase Admin), directly or via a local import, with no authentication or signature check in the handler.",
   },
   {
     id: "site-headers",

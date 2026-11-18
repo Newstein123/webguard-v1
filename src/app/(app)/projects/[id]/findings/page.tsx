@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { useParams } from "next/navigation";
-import { ChevronRight, Search, ShieldCheck } from "lucide-react";
-import { useProjectFindings, useProjectVerification } from "@/lib/data";
+import { useParams, useSearchParams } from "next/navigation";
+import { ChevronRight, Search, ShieldCheck, Wand2 } from "lucide-react";
+import { useProject, useProjectFindings, useProjectVerification } from "@/lib/data";
 import { RULES_BY_ID } from "@/lib/rules";
 import { CATEGORIES, SEVERITIES, type Category, type FindingStatus, type Severity } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { Card, EmptyState, Input, Segmented, Select } from "@/components/ui";
+import { Button, Card, EmptyState, Input, Segmented, Select } from "@/components/ui";
+import { FixAllPanel } from "@/components/fix-all-panel";
 import { SeverityBadge } from "@/components/security";
 import { useExplanationMode } from "@/components/developer-mode";
 import { VerificationBadge } from "@/components/finding-explainer";
@@ -23,7 +24,11 @@ export default function FindingsPage() {
   const { id } = useParams<{ id: string }>();
   const findings = useProjectFindings(id);
   const verification = useProjectVerification(id);
-  const developer = useExplanationMode() === "developer";
+  const mode = useExplanationMode();
+  const developer = mode === "developer";
+  const project = useProject(id);
+  // ?fixall=1 (from the overview) opens the fix-all prompt directly.
+  const [fixAll, setFixAll] = useState(useSearchParams().get("fixall") === "1");
   const [status, setStatus] = useState<FindingStatus | "all">("open");
   const [severity, setSeverity] = useState<Severity | "all">("all");
   const [category, setCategory] = useState<Category | "all">("all");
@@ -48,6 +53,9 @@ export default function FindingsPage() {
     return true;
   });
 
+  const openShown = filtered.filter((f) => f.status === "open");
+  const narrowed = severity !== "all" || category !== "all" || q !== "";
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -70,7 +78,7 @@ export default function FindingsPage() {
             <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search findings…" className="pl-9 sm:w-56" />
           </div>
           <div className="flex gap-2">
-            <Select value={severity} onChange={(e) => setSeverity(e.target.value as Severity | "all")} className="flex-1" aria-label="Severity">
+            <Select value={severity} onChange={(e) => setSeverity(e.target.value as Severity | "all")} className="min-w-0 flex-1" aria-label="Severity">
               <option value="all">All severities</option>
               {SEVERITIES.map((s) => (
                 <option key={s} value={s} className="capitalize">
@@ -78,7 +86,7 @@ export default function FindingsPage() {
                 </option>
               ))}
             </Select>
-            <Select value={category} onChange={(e) => setCategory(e.target.value as Category | "all")} className="flex-1" aria-label="Category">
+            <Select value={category} onChange={(e) => setCategory(e.target.value as Category | "all")} className="min-w-0 flex-1" aria-label="Category">
               <option value="all">All categories</option>
               {CATEGORIES.map((c) => (
                 <option key={c}>{c}</option>
@@ -87,6 +95,18 @@ export default function FindingsPage() {
           </div>
         </div>
       </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-muted">
+          {openShown.length
+            ? `Fix ${narrowed ? "the" : "all"} ${openShown.length} open issue${openShown.length === 1 ? "" : "s"} ${narrowed ? "shown " : ""}with one prompt.`
+            : ""}
+        </p>
+        <Button size="sm" variant={fixAll ? "secondary" : "outline"} onClick={() => setFixAll((v) => !v)} aria-expanded={fixAll} disabled={!openShown.length && !fixAll}>
+          <Wand2 size={14} /> {fixAll ? "Hide fix-all prompt" : "Fix all with AI"}
+        </Button>
+      </div>
+      {fixAll && <FixAllPanel findings={filtered} mode={mode} project={project} filtered={narrowed} />}
 
       <Card className="overflow-hidden">
         {filtered.length === 0 ? (

@@ -383,8 +383,21 @@ export default {
       {
         label: "npm",
         lang: "bash",
-        code: `npm install axios@^1.8.2
+        code: `# Replace axios@^1.8.2 with the package and fixed version from the evidence
+npm install axios@^1.8.2
 npm audit`,
+      },
+      { label: "pnpm", lang: "bash", code: `pnpm add axios@^1.8.2\npnpm audit` },
+      { label: "yarn", lang: "bash", code: `yarn add axios@^1.8.2\nyarn npm audit   # Yarn 2+ (Yarn 1: yarn audit)` },
+      { label: "bun", lang: "bash", code: `bun add axios@^1.8.2` },
+      {
+        label: "Transitive dependency (npm)",
+        lang: "json",
+        code: `// package.json: force a patched version of a package you don't install directly
+{
+  "overrides": { "axios": "^1.8.2" }
+}
+// pnpm: "pnpm": { "overrides": { ... } } · yarn: "resolutions": { ... }`,
       },
     ],
   },
@@ -450,9 +463,9 @@ app.use(cors({
     title: "API route has no authentication check",
     category: "API Security",
     simple:
-      "One of your backend endpoints does something sensitive but never checks who’s asking. Anyone who finds the URL can use it, even without logging in.",
+      "One of your app’s backend endpoints uses a master database key that skips all your security rules, but it never checks who is calling it. Anyone who finds the address (it’s often visible in your site’s code) can use it without logging in, and see or change data they shouldn’t.",
     technical:
-      "The route handler performs privileged data access without verifying a session or token, and without an ownership check on the target resource (potential IDOR).",
+      "The handler uses privileged data access (the Supabase service-role key or an admin client, Prisma, Drizzle, a raw database driver, or Firebase Admin) which bypasses Row Level Security and database rules, and no authentication or caller verification was found in it (no `supabase.auth.getUser()`, `getServerSession()`, `auth()`, JWT verification, auth helper or `withAuth` wrapper, or webhook signature check). Any unauthenticated request reaches the database with full privileges. Detection is static: an auth check in a middleware or in a helper with an unusual name may not be recognised, so confirm before changing code.",
     whyItMatters:
       "Broken access control is the #1 risk in the OWASP Top 10. Unauthenticated endpoints are routinely discovered by crawling your JavaScript bundle.",
     technicalTitle: "Missing authentication / authorization on API route (potential IDOR)",

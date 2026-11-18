@@ -4,6 +4,7 @@ import { analyzeSupabaseRls, ID as RLS_ID } from "../analyzers/supabase-rls";
 import { analyzeRepoSecrets, ID as SECRETS_ID } from "../analyzers/repo-secrets";
 import { analyzeDependencies, ID as DEPS_ID } from "../analyzers/dependencies";
 import { BUNDLE_ID, HEADERS_ID } from "../analyzers/site";
+import { ID as API_AUTH_ID } from "../analyzers/api-auth";
 import { CHECKS } from "@/lib/coverage";
 import type { AnalyzerResult, RepoSnapshot } from "../types";
 
@@ -21,7 +22,7 @@ const ran = (check: AnalyzerResult["check"], scope = "s"): AnalyzerResult => ({ 
 
 describe("check ids", () => {
   it("match the analyzer ids the engine uses to resolve findings", () => {
-    expect(CHECKS.map((c) => c.id).sort()).toEqual([BUNDLE_ID, DEPS_ID, HEADERS_ID, SECRETS_ID, RLS_ID].sort());
+    expect(CHECKS.map((c) => c.id).sort()).toEqual([BUNDLE_ID, DEPS_ID, HEADERS_ID, SECRETS_ID, RLS_ID, API_AUTH_ID].sort());
   });
 });
 
@@ -37,7 +38,8 @@ describe("buildCoverage", () => {
     const c = byCheck(buildCoverage(github, results));
     expect(c["repo-secrets"]).toMatchObject({ status: "ran", scope: "1 file in o/r@main" });
     expect(c.rls).toEqual({ check: "rls", status: "skipped", reason: "No supabase/migrations/*.sql files found in the repository." });
-    expect(c.deps).toEqual({ check: "deps", status: "skipped", reason: "Only npm's package-lock.json is supported so far (found bun.lockb)." });
+    expect(c.deps).toMatchObject({ check: "deps", status: "skipped" });
+    expect((c.deps as { reason: string }).reason).toContain("bun install --save-text-lockfile");
   });
 
   it("describes what the RLS analyzer examined", () => {
@@ -47,7 +49,7 @@ describe("buildCoverage", () => {
 
   it("marks repository checks as skipped for URL-only projects", () => {
     const c = byCheck(buildCoverage({ source: "url", url: "https://app.test" }, [ran("site-headers"), ran("site-bundle")]));
-    for (const id of ["repo-secrets", "rls", "deps"] as const) expect(c[id]).toMatchObject({ status: "skipped", reason: "Needs a connected GitHub repository." });
+    for (const id of ["repo-secrets", "rls", "deps", "api-auth"] as const) expect(c[id]).toMatchObject({ status: "skipped", reason: "Needs a connected GitHub repository." });
     expect(c["site-headers"].status).toBe("ran");
   });
 

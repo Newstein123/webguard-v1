@@ -14,7 +14,7 @@ The dashboard reports coverage per area. Each scan stores what every check did (
 |---|---|---|---|
 | 1 | Code Security | none | Not checked yet |
 | 2 | Authentication & Authorization | none | Not checked yet |
-| 3 | API Security | none | Not checked yet |
+| 3 | API Security | `api-auth` | Checked |
 | 4 | Database Security | `rls` | Checked |
 | 5 | Secrets & Data Protection | `repo-secrets`, `site-bundle` | Checked (Partly checked if one is skipped) |
 | 6 | Dependency Security | `deps` | Checked |
@@ -33,7 +33,8 @@ The dashboard reports coverage per area. Each scan stores what every check did (
 | Supabase admin key exposed | `service_role` JWT or `sb_secret_` key in client code or the browser bundle | Repo, live site | `supabase-service-role-exposed` |
 | Committed `.env` files | Tracked `.env*` files with values (only variable names are stored) | Repo | `env-file-committed` |
 | Database access rules (RLS) | Tables with RLS off; `using (true)` / `with check (true)` policies for `anon`, `public` or `authenticated` | `supabase/migrations/*.sql` | `supabase-rls-disabled`, `supabase-rls-permissive` |
-| Vulnerable dependencies | Every npm package checked against the OSV advisory database, with the fixed version | `package-lock.json` | `vulnerable-dependency` |
+| Vulnerable dependencies | Every npm-ecosystem package checked against the OSV advisory database, with the fixed version | `package-lock.json`, `pnpm-lock.yaml` (v5, v6, v9), `yarn.lock` (v1, Berry), `bun.lock` | `vulnerable-dependency` |
+| API routes without auth | Routes that use admin database access (service-role key or admin client, Prisma, Drizzle, raw drivers, Firebase Admin; directly or via a local import) with no authentication or webhook-signature check | Next.js `app/**/route.ts`, `pages/api/**`, `supabase/functions/*` | `unprotected-api-route` |
 | Browser security headers | HSTS, CSP, X-Frame-Options / frame-ancestors, X-Content-Type-Options, Referrer-Policy | Live site | `missing-security-headers` |
 | HTTPS | Final page served over plain HTTP | Live site | `missing-security-headers` |
 
@@ -43,7 +44,8 @@ The dashboard reports coverage per area. Each scan stores what every check did (
 |---|---|
 | Secrets | About 10 key formats; uncommon providers are missed. No check of whether a key still works. Only the current code is scanned, not git history. |
 | RLS | Only what's in migrations: policies changed in the Supabase dashboard are invisible. Only literal `true` conditions are caught; weak conditions such as `user_id is not null` are missed. |
-| Dependencies | Only `package-lock.json`: `bun`, `pnpm` and `yarn` projects are skipped (Lovable often uses bun). No check of whether vulnerable code is actually used. npm only. |
+| Dependencies | Bun's old binary `bun.lockb` can't be read (the scan explains how to switch to the text `bun.lock`). Dev-only packages are recognised only in npm and pnpm v5/v6 lockfiles; elsewhere they keep full severity. No check of whether vulnerable code is actually used. npm ecosystem only. If any lockfile can't be parsed, the whole check is skipped rather than run on partial data. |
+| API routes | Static and per-file: auth enforced in `middleware.ts` or in a helper with an unusual name may not be recognised (findings are lowered to medium when an auth middleware exists). Only privileged data access is flagged; routes using the user-scoped Supabase client rely on RLS. No ownership (IDOR) checks. Express, Hono and other servers are not analyzed yet. |
 | Live site | Only the homepage and its own scripts. Pages behind login and lazily loaded code are not fetched. |
 | Private repos | Only with a shared server `GITHUB_TOKEN`. A per-user GitHub App comes after the MVP. |
 
@@ -51,7 +53,7 @@ The dashboard reports coverage per area. Each scan stores what every check did (
 
 | Risk | Examples | Why not yet |
 |---|---|---|
-| Broken access control in code | API routes without auth checks, IDOR (reading another user's data by changing an ID), admin pages without role checks | Needs code-logic analysis. **This is the biggest gap.** |
+| Broken access control beyond missing auth | IDOR (reading another user's data by changing an ID), admin pages without role checks, Express/Hono routes | Needs deeper code-logic analysis. Missing auth on Next.js/Edge routes is now covered (see above) |
 | Injection | SQL injection, XSS, command injection, SSRF in app code | Needs code analysis or active testing |
 | Authentication setup | Weak password rules, missing email confirmation, open sign-ups, cookie flags, OAuth redirect settings | Knowledge-base rules exist, but no analyzer uses them yet |
 | Active live-site checks | Exposed `/.env` or `/.git`, CORS misconfiguration, open redirects, verbose error pages | Deliberately off until domain verification exists |
@@ -66,11 +68,10 @@ The dashboard reports coverage per area. Each scan stores what every check did (
 
 | # | Addition | Effort | Why |
 |---|---|---|---|
-| 1 | `bun` and `pnpm` lockfiles | Small | Makes the dependency check work for most Lovable apps |
-| 2 | Weaker RLS patterns (`user_id is not null`, missing `using` on update, policies on `auth.users`) | Small | Catches near-miss policies that still leak data |
-| 3 | API-route auth check (Next.js, Express, Supabase Edge Functions) | Medium | The most common broken-access-control bug in vibe-coded apps |
-| 4 | Domain verification | Medium | Unlocks dotfile, CORS and open-redirect checks, and a **live RLS proof** ("we read 1 row from `invoices` without logging in") |
-| 5 | Firebase rules and Supabase Storage policies | Medium | Same class of data leak on other common backends |
+| 1 | Weaker RLS patterns (`user_id is not null`, missing `using` on update, policies on `auth.users`) | Small | Catches near-miss policies that still leak data |
+| 2 | API-route auth for Express and Hono, and ownership (IDOR) checks | Medium | Extends the new route check to more servers and to "logged in, but someone else's data" |
+| 3 | Domain verification | Medium | Unlocks dotfile, CORS and open-redirect checks, and a **live RLS proof** ("we read 1 row from `invoices` without logging in") |
+| 4 | Firebase rules and Supabase Storage policies | Medium | Same class of data leak on other common backends |
 
 ## How to describe this publicly
 

@@ -16,7 +16,7 @@ describe("categoryCoverage", () => {
     expect(s).toEqual({
       "Code Security": "not_available",
       "Authentication & Authorization": "not_available",
-      "API Security": "not_available",
+      "API Security": "checked",
       "Database Security": "checked",
       "Secrets & Data Protection": "checked",
       "Dependency Security": "checked",
@@ -25,7 +25,7 @@ describe("categoryCoverage", () => {
       "File & Input Security": "not_available",
       "Runtime & Business Logic": "not_available",
     });
-    expect(checkedAreaCount(ranAll)).toBe(4);
+    expect(checkedAreaCount(ranAll)).toBe(5);
   });
 
   it("is partial when only some of an area's checks ran, and skipped when none did", () => {
@@ -35,7 +35,7 @@ describe("categoryCoverage", () => {
     const s = status(cov);
     expect(s["Secrets & Data Protection"]).toBe("partial");
     expect(s["Dependency Security"]).toBe("skipped");
-    expect(checkedAreaCount(cov)).toBe(3);
+    expect(checkedAreaCount(cov)).toBe(4);
   });
 
   it("treats a missing check entry as not run", () => {

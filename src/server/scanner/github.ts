@@ -1,6 +1,7 @@
 import "server-only";
 import { gunzipSync } from "node:zlib";
 import type { RepoFile, RepoSnapshot } from "./types";
+import { LOCKFILE_RE } from "./lockfiles";
 
 /**
  * Reads a repository through the GitHub API without cloning: one tarball
@@ -154,7 +155,7 @@ function untar(buf: Buffer): { files: RepoFile[]; allPaths: string[] } {
     const path = full.split("/").slice(1).join("/"); // drop root dir
     if (!path) continue;
     allPaths.push(path);
-    const isLockfile = /(^|\/)package-lock\.json$/.test(path);
+    const isLockfile = LOCKFILE_RE.test(path);
     const maxSize = isLockfile ? MAX_LOCKFILE_BYTES : MAX_FILE_BYTES;
     if (files.length >= MAX_FILES || size > maxSize || SKIP_DIRS.test(path) || BINARY_EXT.test(path)) continue;
     if (data.includes(0)) continue; // binary

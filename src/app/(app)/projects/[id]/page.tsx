@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowRight, ShieldCheck } from "lucide-react";
+import { ArrowRight, ShieldCheck, Wand2 } from "lucide-react";
 import { useProject, useProjectSummary } from "@/lib/data";
 import { RULES_BY_ID } from "@/lib/rules";
 import { countBySeverity, scoreGrade } from "@/lib/utils";
@@ -60,9 +60,16 @@ export default function ProjectOverview() {
             title="Fix these first"
             description="Your highest-impact open issues"
             action={
-              <Link href={`/projects/${id}/findings`} className="flex items-center gap-1 text-sm text-primary hover:underline">
-                All findings <ArrowRight size={14} />
-              </Link>
+              <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-4">
+                {open.length > 1 && (
+                  <Link href={`/projects/${id}/findings?fixall=1`} className="flex items-center gap-1 text-sm text-primary hover:underline">
+                    <Wand2 size={14} /> Fix all with AI
+                  </Link>
+                )}
+                <Link href={`/projects/${id}/findings`} className="flex items-center gap-1 text-sm text-primary hover:underline">
+                  All findings <ArrowRight size={14} />
+                </Link>
+              </div>
             }
           />
           {top.length === 0 ? (

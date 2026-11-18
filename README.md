@@ -51,15 +51,16 @@ npm run db:types    # regenerate src/lib/database.types.ts after a migration
 | Leaked secrets (Stripe, OpenAI, Anthropic, AWS, GitHub, Slack, SendGrid, private keys) | Repo, live JS bundles | `hardcoded-secret` |
 | Supabase `service_role` / `sb_secret_` key exposed | Repo, live JS bundles | `supabase-service-role-exposed` |
 | Committed `.env` files | Repo | `env-file-committed` |
-| Vulnerable npm dependencies (OSV database) | `package-lock.json` | `vulnerable-dependency` |
+| Vulnerable npm-ecosystem dependencies (OSV database) | `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lock` | `vulnerable-dependency` |
+| API routes with admin database access and no auth check | Next.js `app/**/route.ts`, `pages/api/**`, Supabase Edge Functions | `unprotected-api-route` |
 | RLS disabled or `using (true)` policies | `supabase/migrations/*.sql` | `supabase-rls-disabled`, `supabase-rls-permissive` |
 | Missing security headers / no HTTPS | Live site | `missing-security-headers` |
 
-These checks map onto WebGuard's 10 security areas (four have checks today). Each scan records which checks ran and why any were skipped, and the dashboard shows exactly that. See [docs/security-coverage.md](docs/security-coverage.md).
+These checks map onto WebGuard's 10 security areas (five have checks today). Each scan records which checks ran and why any were skipped, and the dashboard shows exactly that. See [docs/security-coverage.md](docs/security-coverage.md).
 
 All live-site checks are **passive**: they make the same GET requests a visitor's browser makes. Active probes, such as requesting `/.env` or querying Supabase tables with the anon key, will require domain verification first.
 
-**Coming next:** scheduled scans, scan-on-push (GitHub App), email alerts, `pnpm` and `yarn` lockfiles, and domain verification.
+**Coming next:** scheduled scans, scan-on-push (GitHub App), email alerts, and domain verification.
 
 ## Architecture
 

@@ -1,19 +1,17 @@
 import "server-only";
 import type { Severity } from "@/lib/types";
 import type { AnalyzerResult, RawFinding, RepoSnapshot } from "../types";
+import { LOCKFILE_RE, parseLockfile, type Pkg } from "../lockfiles";
 
-/** npm dependency advisories via the public OSV database (osv.dev). */
+/** Kept for existing callers and tests. */
+export { parsePackageLock } from "../lockfiles";
+
+/** npm-ecosystem dependency advisories (npm, pnpm, yarn, bun lockfiles) via the public OSV database (osv.dev). */
 export const ID = "deps";
 
 const OSV = "https://api.osv.dev/v1";
 const MAX_VULN_DETAILS = 150;
 
-interface Pkg {
-  name: string;
-  version: string;
-  dev: boolean;
-  lockfile: string;
-}
 
 interface OsvVuln {
   id: string;
@@ -21,34 +19,6 @@ interface OsvVuln {
   aliases?: string[];
   database_specific?: { severity?: string };
   affected?: { package?: { name: string; ecosystem: string }; ranges?: { events: Record<string, string>[] }[] }[];
-}
-
-/** Parse package-lock.json v1/v2/v3 into a unique list of installed packages. */
-export function parsePackageLock(content: string, lockfile: string): Pkg[] {
-  let json: { packages?: Record<string, { version?: string; dev?: boolean; link?: boolean }>; dependencies?: Record<string, unknown> };
-  try {
-    json = JSON.parse(content);
-  } catch {
-    return [];
-  }
-  const out = new Map<string, Pkg>();
-  if (json.packages) {
-    for (const [key, info] of Object.entries(json.packages)) {
-      if (!key || info.link || !info.version) continue;
-      const name = key.slice(key.lastIndexOf("node_modules/") + "node_modules/".length);
-      out.set(`${name}@${info.version}`, { name, version: info.version, dev: !!info.dev, lockfile });
-    }
-  } else if (json.dependencies) {
-    const walk = (deps: Record<string, unknown>) => {
-      for (const [name, raw] of Object.entries(deps)) {
-        const d = raw as { version?: string; dev?: boolean; dependencies?: Record<string, unknown> };
-        if (d.version && /^\d/.test(d.version)) out.set(`${name}@${d.version}`, { name, version: d.version, dev: !!d.dev, lockfile });
-        if (d.dependencies) walk(d.dependencies);
-      }
-    };
-    walk(json.dependencies);
-  }
-  return [...out.values()];
 }
 
 const SEV_RANK: Record<Severity, number> = { critical: 4, high: 3, medium: 2, low: 1, info: 0 };
@@ -119,21 +89,32 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (t: T) => Promise<R
 }
 
 export async function analyzeDependencies(snap: RepoSnapshot): Promise<AnalyzerResult> {
-  const lockfiles = snap.files.filter((f) => /(^|\/)package-lock\.json$/.test(f.path));
+  const lockfiles = snap.files.filter((f) => LOCKFILE_RE.test(f.path));
+  const skip = (reason: string): AnalyzerResult => ({ check: ID, covered: [], findings: [], skipped: reason });
+  // Without a readable lockfile we cannot tell, so existing dependency findings are left unchanged.
   if (lockfiles.length === 0) {
-    const other = snap.allPaths.find((p) => /(^|\/)(pnpm-lock\.yaml|yarn\.lock|bun\.lockb?)$/.test(p));
-    // Without a lockfile we cannot tell, so do not resolve existing dependency findings.
-    return {
-      check: ID,
-      covered: [],
-      findings: [],
-      skipped: other ? `Only npm's package-lock.json is supported so far (found ${other}).` : "No package-lock.json found in the repository.",
-    };
+    const binaryBun = snap.allPaths.find((p) => /(^|\/)bun\.lockb$/.test(p));
+    if (binaryBun)
+      return skip(
+        `${binaryBun} is Bun's binary lockfile, which can't be read. Bun 1.2+ writes a text bun.lock instead: run \`bun install --save-text-lockfile\`, commit bun.lock, and scan again.`,
+      );
+    const tooBig = snap.allPaths.find((p) => LOCKFILE_RE.test(p));
+    if (tooBig) return skip(`${tooBig} couldn't be read (it may be larger than the 20 MB limit).`);
+    return skip("No lockfile found (looked for package-lock.json, pnpm-lock.yaml, yarn.lock and bun.lock).");
   }
 
-  const pkgs = lockfiles.flatMap((f) => parsePackageLock(f.content, f.path));
+  const pkgs: Pkg[] = [];
+  for (const f of lockfiles) {
+    const parsed = parseLockfile(f.path, f.content);
+    // Never audit partial data: packages missing from the parse would look fixed.
+    if (parsed.length === 0) return skip(`${f.path} couldn't be parsed, so dependencies weren't checked.`);
+    pkgs.push(...parsed);
+  }
+  // The same package can appear in several lockfiles (monorepos); query OSV once per version.
+  const unique = [...new Map(pkgs.map((p) => [`${p.name}@${p.version}`, p])).values()];
+
   try {
-    return await auditPackages(pkgs, lockfiles.map((f) => f.path).join(", "));
+    return await auditPackages(unique, lockfiles.map((f) => f.path).join(", "));
   } catch (e) {
     if (!(e instanceof OsvUnavailableError)) throw e;
     // Never claim coverage on partial data: that would mark open dependency findings as resolved.

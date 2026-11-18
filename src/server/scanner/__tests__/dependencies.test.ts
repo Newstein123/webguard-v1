@@ -89,3 +89,39 @@ describe("runCheck", () => {
     expect(await runCheck("rls", () => ok)).toBe(ok);
   });
 });
+
+describe("lockfile formats", () => {
+  const snapOf = (files: Record<string, string>, extraPaths: string[] = []): RepoSnapshot => ({
+    ...repo,
+    files: Object.entries(files).map(([path, content]) => ({ path, content })),
+    allPaths: [...Object.keys(files), ...extraPaths],
+  });
+
+  it("audits a pnpm project and reports the pnpm lockfile as the location", async () => {
+    detailFailures = 0;
+    const r = await analyzeDependencies(snapOf({ "pnpm-lock.yaml": "lockfileVersion: '9.0'\n\npackages:\n\n  axios@1.6.0:\n    resolution: {integrity: sha512-x}\n" }));
+    expect(r.covered).toEqual(["deps"]);
+    expect(r.scope).toBe("1 package in pnpm-lock.yaml");
+    expect(r.findings[0].location).toBe("pnpm-lock.yaml → axios@1.6.0");
+  });
+
+  it("skips (never audits partial data) when a lockfile can't be parsed", async () => {
+    const r = await analyzeDependencies(snapOf({ "package-lock.json": lock, "apps/web/bun.lock": "{ not json" }));
+    expect(r).toMatchObject({ covered: [], findings: [] });
+    expect(r.skipped).toBe("apps/web/bun.lock couldn't be parsed, so dependencies weren't checked.");
+    expect(calls).toEqual([]); // OSV never queried
+  });
+
+  it("explains how to get a readable lockfile from bun.lockb", async () => {
+    const r = await analyzeDependencies(snapOf({ "src/a.ts": "" }, ["bun.lockb"]));
+    expect(r.covered).toEqual([]);
+    expect(r.skipped).toContain("bun install --save-text-lockfile");
+  });
+
+  it("queries OSV once per package version across several lockfiles", async () => {
+    detailFailures = 0;
+    await analyzeDependencies(snapOf({ "package-lock.json": lock, "apps/web/package-lock.json": lock }));
+    const batch = vi.mocked(fetch).mock.calls.find(([u]) => String(u).endsWith("/querybatch"))!;
+    expect(JSON.parse(String((batch[1] as RequestInit).body)).queries).toHaveLength(1);
+  });
+});
